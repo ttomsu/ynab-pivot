@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"os"
 	"strconv"
@@ -9,21 +10,21 @@ import (
 	"github.com/brunomvsouza/ynab.go"
 	"github.com/brunomvsouza/ynab.go/api"
 	"github.com/brunomvsouza/ynab.go/api/category"
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 )
 
 func main() {
-	app := &cli.App{
+	app := &cli.Command{
 		Name:  "amicus",
 		Usage: "Choose a person to contact and email the name to the recipient",
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:    "budget-id",
-				EnvVars: []string{"YNAB_BUDGET_ID"},
+				Sources: cli.EnvVars("YNAB_BUDGET_ID"),
 			},
 			&cli.StringFlag{
 				Name:    "access-token",
-				EnvVars: []string{"YNAB_ACCESS_TOKEN"},
+				Sources: cli.EnvVars("YNAB_ACCESS_TOKEN"),
 			},
 			&cli.StringFlag{
 				Name:      "output",
@@ -32,25 +33,25 @@ func main() {
 			},
 			&cli.IntFlag{
 				Name:  "year",
-				Value: time.Now().Year() - 1,
+				Value: int64(time.Now().Year() - 1),
 			},
 		},
-		Action: func(cCtx *cli.Context) error {
-			return pivotData(cCtx)
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			return pivotData(ctx, cmd)
 		},
 	}
 
-	if err := app.Run(os.Args); err != nil {
+	if err := app.Run(context.Background(), os.Args); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func pivotData(cCtx *cli.Context) error {
-	budgetID := cCtx.String("budget-id")
-	accessToken := cCtx.String("access-token")
+func pivotData(_ context.Context, cmd *cli.Command) error {
+	budgetID := cmd.String("budget-id")
+	accessToken := cmd.String("access-token")
 
 	if budgetID == "" || accessToken == "" {
-		log.Fatal("budget-id and access-token are required")
+		log.Fatal("--budget-id and --access-token are required")
 	}
 
 	ynabClient := ynab.NewClient(accessToken)
@@ -68,8 +69,8 @@ func pivotData(cCtx *cli.Context) error {
 	}
 
 	outWriter := os.Stdout
-	if cCtx.IsSet("output") {
-		outFile := cCtx.String("output")
+	if cmd.IsSet("output") {
+		outFile := cmd.String("output")
 		outWriter, err = os.Create(outFile)
 		if err != nil {
 			return err
@@ -79,7 +80,7 @@ func pivotData(cCtx *cli.Context) error {
 	w := log.New(outWriter, "", 0)
 
 	for _, m := range bs.Budget.Months {
-		if m.Month.Year() != cCtx.Int("year") {
+		if int64(m.Month.Year()) != cmd.Int("year") {
 			continue
 		}
 		for _, c := range m.Categories {
